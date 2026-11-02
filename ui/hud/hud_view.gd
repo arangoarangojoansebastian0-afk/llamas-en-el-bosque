@@ -62,6 +62,13 @@ func _draw() -> void:
 	if GameState.has_tool("extinguisher"): tool_icons.append("EXT.x%d" % max(0, int(GameState.tools.get("extinguisher", 0))))
 	if GameState.has_tool("lantern"): tool_icons.append("LINTERNA")
 	if GameState.has_tool("radio_pro"): tool_icons.append("RADIO")
+	if GameState.has_tool("radio_com"): tool_icons.append("COM")
+	if GameState.has_tool("axe"): tool_icons.append("HACHA")
+	if GameState.has_tool("shovel"): tool_icons.append("PALA")
+	if GameState.has_tool("detector_calor"): tool_icons.append("DET.x%d" % max(0, int(GameState.tools.get("detector_calor", 0))))
+	if GameState.has_tool("kit_reparacion"): tool_icons.append("KIT.x%d" % max(0, int(GameState.tools.get("kit_reparacion", 0))))
+	if GameState.has_tool("botiquin_animal"): tool_icons.append("BOT.ANIMAL")
+	if GameState.has_tool("backpack_large"): tool_icons.append("MOCHILA+")
 	if tool_icons.size() > 0:
 		var tools_panel_w := 300.0
 		_panel(Rect2(12.0, 120.0, tools_panel_w, 22.0))

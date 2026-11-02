@@ -123,11 +123,98 @@ func _update_interaction() -> void:
 
 ## Espacio: lanza agua si hay fuego cerca; si no, observa el entorno.
 func _on_action() -> void:
+	# Prioridad 1: detector de calor si está equipado (detecta fuego a través de humo)
+	if GameState.has_tool("detector_calor"):
+		if _detector_scan():
+			return
 	var fire := _nearest_fire()
 	if fire != null:
+		# Pala: cubrir fuego con tierra si la tienes
+		if GameState.has_tool("shovel"):
+			if _cover_with_soil(fire):
+				return
 		_throw_water(fire)
 	else:
+		# Hacha: talar árboles secos para crear cortafuegos
+		if GameState.has_tool("axe"):
+			if _chop_dry_wood():
+				return
 		_observe()
+
+## Detector de calor: detecta focos a través del humo y señala zonas secas.
+func _detector_scan() -> bool:
+	if not GameState.use_tool("detector_calor"):
+		return false
+	_observe_timer = 2.0
+	_observe_visual = 0.8
+	Sound.play("observe", -4.0)
+	GameState.change_stamina(-8.0)
+	var found := 0
+	for node in get_tree().get_nodes_in_group("fire_cell"):
+		var cell := node as FireCell
+		if cell == null:
+			continue
+		if global_position.distance_to(cell.global_position) <= 300.0:
+			cell.reveal(5.0)
+			found += 1
+	if found > 0:
+		GameState.post_message("Detector: %d focos activos cercanos." % found)
+	else:
+		GameState.post_message("Detector: no se detectan focos en un radio de 300m.")
+	return true
+
+## Pala: cubre un foco de fuego con tierra, reduciendo su intensidad.
+func _cover_with_soil(fire: FireCell) -> bool:
+	if not GameState.has_tool("shovel"):
+		return false
+	if global_position.distance_to(fire.global_position) > SPLASH_RANGE + 20.0:
+		return false
+	if not fire.is_dangerous():
+		return false
+	if not GameState.use_tool("shovel"):
+		GameState.post_message("Pala sin usos.")
+		return false
+	_splash_timer = SPLASH_COOLDOWN
+	_splash_visual = 0.25
+	_splash_target = to_local(fire.global_position)
+	facing = (fire.global_position - global_position).normalized()
+	Sound.play("splash", -3.0, 0.08)
+	GameState.add_stat("soil_used")
+	fire.apply_water(30.0)  # la tierra apaga como 30 puntos de fuego
+	GameState.post_message("Cubres el foco con tierra. El fuego cede.")
+	return true
+
+## Hacha: tala árboles secos para crear cortafuegos y obtiene madera.
+func _chop_dry_wood() -> bool:
+	var target := _nearest_dry_wood()
+	if target == null:
+		return false
+	if global_position.distance_to(target.global_position) > INTERACT_RANGE + 10.0:
+		return false
+	if not GameState.use_tool("axe"):
+		GameState.post_message("Hacha sin usos.")
+		return false
+	_observe_timer = 0.5
+	_observe_visual = 0.3
+	Sound.play("splash", -5.0, 0.1)
+	target.chop(self)
+	GameState.add_resource("wood", 1)
+	GameState.add_stat("wood_chopped")
+	GameState.post_message("Talas un árbol seco. Cortafuego abierto.")
+	return true
+
+func _nearest_dry_wood() -> Node2D:
+	var best: Node2D = null
+	var best_distance := INTERACT_RANGE + 10.0
+	for node in get_tree().get_nodes_in_group("dry_wood"):
+		var candidate := node as Node2D
+		if candidate == null or not candidate.has_method("chop"):
+			continue
+		var distance := global_position.distance_to(candidate.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = candidate
+	return best
 
 func _throw_water(fire: FireCell) -> void:
 	if _splash_timer > 0.0:
