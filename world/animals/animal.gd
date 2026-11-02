@@ -6,10 +6,11 @@ extends CharacterBody2D
 signal rescued(animal: Animal)
 
 enum Species { RABBIT, SQUIRREL, DEER }
-enum Mode { WANDER, FLEE, TRAPPED, FOLLOW, SAFE }
+enum Mode { WANDER, FLEE, TRAPPED, FOLLOW, SAFE, INJURED }
 
 @export var species: Species = Species.RABBIT
 @export var mode: Mode = Mode.WANDER
+@export var injured := false
 @export var wander_radius := 110.0
 
 var refuge: Refuge = null
@@ -28,6 +29,9 @@ func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	add_to_group("observable")
+	if injured:
+		add_to_group("injured_animal")
+		add_to_group("interactable")
 	_rng.randomize()
 	_phase = _rng.randf() * TAU
 	home = global_position
@@ -49,14 +53,29 @@ func species_name() -> String:
 			return "venado"
 
 func get_prompt() -> String:
+	if injured:
+		return "E · Curar animal herido (Botiquín Animal)"
 	return "E · Ayudar (%s atrapado)" % species_name()
 
 func interact(_player: Node) -> void:
+	if injured:
+		return
 	if mode != Mode.TRAPPED:
 		return
 	_set_mode(Mode.FOLLOW)
 	Sound.play("chirp", -4.0)
 	GameState.post_message("El %s te sigue. Llévalo al refugio, lejos del fuego." % species_name() if species != Species.SQUIRREL else "La ardilla te sigue. Llévala al refugio, lejos del fuego.")
+
+func heal() -> void:
+	if not injured:
+		return
+	injured = false
+	remove_from_group("injured_animal")
+	remove_from_group("interactable")
+	_set_mode(Mode.SAFE)
+	Sound.play("rescue", -3.0)
+	GameState.add_stat("animals_healed")
+	GameState.post_message("El %s ha sido curado y puede seguir su camino." % species_name() if species != Species.SQUIRREL else "La ardilla ha sido curada y puede seguir su camino.")
 
 func reveal(duration: float) -> void:
 	_reveal = duration
@@ -69,6 +88,9 @@ func restore(saved_mode: int, where: Vector2) -> void:
 		_set_mode(Mode.SAFE)
 	elif saved_mode == Mode.TRAPPED or saved_mode == Mode.FOLLOW:
 		_set_mode(Mode.TRAPPED)
+	elif saved_mode == Mode.INJURED:
+		injured = true
+		_set_mode(Mode.INJURED)
 	else:
 		_set_mode(Mode.WANDER)
 
@@ -78,6 +100,11 @@ func _set_mode(new_mode: Mode) -> void:
 		add_to_group("interactable")
 	elif is_in_group("interactable"):
 		remove_from_group("interactable")
+	if mode == Mode.INJURED:
+		add_to_group("injured_animal")
+		add_to_group("interactable")
+	elif mode != Mode.INJURED and is_in_group("injured_animal"):
+		remove_from_group("injured_animal")
 	velocity = Vector2.ZERO
 
 func _walk_speed() -> float:
@@ -102,7 +129,7 @@ func _physics_process(delta: float) -> void:
 			_flee(delta)
 		Mode.FOLLOW:
 			_follow(delta)
-		Mode.TRAPPED:
+		Mode.TRAPPED, Mode.INJURED:
 			velocity = Vector2.ZERO
 	move_and_slide()
 	if absf(velocity.x) > 1.0:
@@ -201,6 +228,10 @@ func _draw() -> void:
 		var blink := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 160.0)
 		draw_rect(Rect2(-2.0, top - 10.0, 4.0, 7.0), Color(0.9, 0.25, 0.2, 0.5 + 0.5 * blink))
 		draw_rect(Rect2(-2.0, top - 2.0, 4.0, 3.0), Color(0.9, 0.25, 0.2, 0.5 + 0.5 * blink))
+	elif injured:
+		var blink := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 200.0)
+		draw_rect(Rect2(-2.0, top - 10.0, 4.0, 7.0), Color(0.2, 0.6, 0.9, 0.5 + 0.5 * blink))
+		draw_rect(Rect2(-2.0, top - 2.0, 4.0, 3.0), Color(0.2, 0.6, 0.9, 0.5 + 0.5 * blink))
 	if _reveal > 0.0:
 		var pulse := 1.0 + 0.2 * sin(float(Time.get_ticks_msec()) / 150.0)
 		draw_arc(Vector2(0.0, top * 0.5), 18.0 * pulse, 0.0, TAU, 32, Color(1.0, 0.9, 0.4, minf(1.0, _reveal)), 2.0)
