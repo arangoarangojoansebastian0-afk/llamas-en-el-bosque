@@ -1,454 +1,356 @@
-﻿extends Node
-## Fuente única de verdad para regiones, coordenadas globales y descubrimientos.
-## Autoload "WorldManager".
-
-signal region_discovered(region_id: String)
-signal regions_changed
-signal location_discovered(location_id: String)
-signal player_position_updated(global_position: Vector2, region_id: String)
-
-const REGION_ORDER: Array[String] = [
-	"frontera",
-	"sendero",
-	"pueblo",
-	"montanhas",
-	"llanura",
-]
-
 ## Las coordenadas globales preservan la distribución y puntos de interés del mapa anterior.
 ## Solo Frontera tiene una escena jugable dentro del proyecto importado.
+## Todas las cinco regiones cuentan con 4+ ubicaciones de interés con tipos, misiones y descripciones.
 const REGIONS := {
-	"frontera": {
-		"name": "Zona de Frontera",
-		"scene": "res://world/regions/frontera/frontera.tscn",
-		"description": "Bosque inicial con sendero, estanque y refugio.",
-		"origin": Vector2(0.0, 0.0),
-		"size": Vector2(2400.0, 1400.0),
-		"map_color": Color("466b3e"),
-		"entry_location": "player_spawn",
-	},
-	"sendero": {
-		"name": "Sendero de la Quebrada",
-		"description": "Bosque denso junto al río y las laderas del norte.",
-		"origin": Vector2(4200.0, 1400.0),
-		"size": Vector2(1600.0, 1000.0),
-		"map_color": Color("557d58"),
-		"entry_location": "sendero_end",
-	},
-	"pueblo": {
-		"name": "Pueblo El Pinar",
-		"description": "Pueblo con tienda y estación de bomberos.",
-		"origin": Vector2(2400.0, 1400.0),
-		"size": Vector2(1200.0, 800.0),
-		"map_color": Color("8b7658"),
-		"entry_location": "pueblo_center",
-	},
-	"montanhas": {
-		"name": "Sierras del Norte",
-		"description": "Zona montañosa con fauna en peligro y laderas expuestas.",
-		"origin": Vector2(0.0, 1400.0),
-		"size": Vector2(1800.0, 1600.0),
-		"map_color": Color("747b72"),
-		"entry_location": "montanhas_start",
-	},
-	"llanura": {
-		"name": "Llanura Quemada",
-		"description": "Terreno afectado por el fuego, destinado a la restauración.",
-		"origin": Vector2(2400.0, 0.0),
-		"size": Vector2(2000.0, 1200.0),
-		"map_color": Color("9a7543"),
-		"entry_location": "llanura_start",
-	},
+\t"frontera": {
+\t\t"name": "Zona de Frontera",
+\t\t"scene": "res://world/regions/frontera/frontera.tscn",
+\t\t"description": "Bosque inicial con sendero, estanque y refugio. Punto de partida del viaje.",
+\t\t"origin": Vector2(0.0, 0.0),
+\t\t"size": Vector2(2400.0, 1400.0),
+\t\t"map_color": Color("466b3e"),
+\t\t"entry_location": "player_spawn",
+\t\t"biome": "forest",
+\t\t"danger_level": 1,
+\t},
+\t"sendero": {
+\t\t"name": "Sendero de la Quebrada",
+\t\t"scene": "",
+\t\t"description": "Bosque denso junto al río y las laderas del norte. Zona de vigilancia y campamentos forestales.",
+\t\t"origin": Vector2(4200.0, 1400.0),
+\t\t"size": Vector2(1600.0, 1000.0),
+\t\t"map_color": Color("557d58"),
+\t\t"entry_location": "sendero_end",
+\t\t"biome": "dense_forest",
+\t\t"danger_level": 2,
+\t},
+\t"pueblo": {
+\t\t"name": "Pueblo El Pinar",
+\t\t"scene": "",
+\t\t"description": "Pueblo con tienda, estación de bomberos y servicios. Centro de suministro y comercio.",
+\t\t"origin": Vector2(2400.0, 1400.0),
+\t\t"size": Vector2(1200.0, 800.0),
+\t\t"map_color": Color("8b7658"),
+\t\t"entry_location": "pueblo_center",
+\t\t"biome": "town",
+\t\t"danger_level": 1,
+\t},
+\t"montanhas": {
+\t\t"name": "Sierras del Norte",
+\t\t"scene": "",
+\t\t"description": "Zona montañosa con fauna en peligro y laderas expuestas. Refugios y miradores de alta montaña.",
+\t\t"origin": Vector2(0.0, 1400.0),
+\t\t"size": Vector2(1800.0, 1600.0),
+\t\t"map_color": Color("747b72"),
+\t\t"entry_location": "montanhas_start",
+\t\t"biome": "mountain",
+\t\t"danger_level": 3,
+\t},
+\t"llanura": {
+\t\t"name": "Llanura Quemada",
+\t\t"scene": "",
+\t\t"description": "Terreno afectado por el fuego, destinado a la restauración ambiental y recuperación de vegetación.",
+\t\t"origin": Vector2(2400.0, 0.0),
+\t\t"size": Vector2(2000.0, 1200.0),
+\t\t"map_color": Color("9a7543"),
+\t\t"entry_location": "llanura_start",
+\t\t"biome": "burned",
+\t\t"danger_level": 2,
+\t},
 }
 
+## Ubicaciones de interés por región: mínimo cuatro por región.
+## Tipos: spawn, safe_zone, resource, npc, clue, fire_zone, animal, entrance, exit,
+## town_center, tower, camp, bridge, cave, lake, ruin, station, emergency, research.
 const LOCATION_DEFS := {
-	"player_spawn": {
-		"name": "Punto de inicio",
-		"region": "frontera",
-		"local_position": Vector2(160.0, 700.0),
-		"type": "spawn",
-	},
-	"refuge": {
-		"name": "Refugio de emergencia",
-		"region": "frontera",
-		"local_position": Vector2(1440.0, 880.0),
-		"type": "safe_zone",
-		"quest_id": "rescate",
-	},
-	"pond": {
-		"name": "Pozo de agua",
-		"region": "frontera",
-		"local_position": Vector2(330.0, 540.0),
-		"type": "resource",
-	},
-	"elena": {
-		"name": "Elena, guardabosques",
-		"region": "frontera",
-		"local_position": Vector2(250.0, 668.0),
-		"type": "npc",
-		"quest_id": "bosque_en_peligro",
-	},
-	"mateo": {
-		"name": "Mateo, vecino",
-		"region": "frontera",
-		"local_position": Vector2(470.0, 600.0),
-		"type": "npc",
-	},
-	"tomas": {
-		"name": "Tomás, bombero forestal",
-		"region": "frontera",
-		"local_position": Vector2(1010.0, 690.0),
-		"type": "npc",
-		"quest_id": "primeras_llamas",
-	},
-	"lucia": {
-		"name": "Dra. Lucía",
-		"region": "frontera",
-		"local_position": Vector2(1400.0, 560.0),
-		"type": "npc",
-		"quest_id": "futuro",
-	},
-	"clue_fogata": {
-		"name": "Restos de fogata",
-		"region": "frontera",
-		"local_position": Vector2(600.0, 780.0),
-		"type": "clue",
-		"quest_id": "bosque_en_peligro",
-	},
-	"clue_colilla": {
-		"name": "Colilla",
-		"region": "frontera",
-		"local_position": Vector2(735.0, 700.0),
-		"type": "clue",
-		"quest_id": "bosque_en_peligro",
-	},
-	"clue_hierba": {
-		"name": "Hierba seca",
-		"region": "frontera",
-		"local_position": Vector2(860.0, 590.0),
-		"type": "clue",
-		"quest_id": "bosque_en_peligro",
-	},
-	"zone_a": {
-		"name": "Foco junto al sendero",
-		"region": "frontera",
-		"local_position": Vector2(1180.0, 650.0),
-		"type": "fire_zone",
-		"quest_id": "primeras_llamas",
-	},
-	"zone_b": {
-		"name": "Focos del este",
-		"region": "frontera",
-		"local_position": Vector2(1760.0, 520.0),
-		"type": "fire_zone",
-		"quest_id": "recuperar",
-	},
-	"rabbit_rescue": {
-		"name": "Conejo atrapado",
-		"region": "frontera",
-		"local_position": Vector2(1650.0, 420.0),
-		"type": "animal",
-		"quest_id": "rescate",
-	},
-	"squirrel_rescue": {
-		"name": "Ardilla atrapada",
-		"region": "frontera",
-		"local_position": Vector2(1950.0, 650.0),
-		"type": "animal",
-		"quest_id": "rescate",
-	},
-	"deer_rescue": {
-		"name": "Venado atrapado",
-		"region": "frontera",
-		"local_position": Vector2(1860.0, 410.0),
-		"type": "animal",
-		"quest_id": "rescate",
-	},
-	"llanura_start": {
-		"name": "Entrada a la Llanura Quemada",
-		"region": "llanura",
-		"local_position": Vector2(0.0, 600.0),
-		"type": "entrance",
-		"quest_id": "recuperar",
-	},
-	"montanhas_start": {
-		"name": "Entrada a las Sierras del Norte",
-		"region": "montanhas",
-		"local_position": Vector2(900.0, 0.0),
-		"type": "entrance",
-		"quest_id": "rescate",
-	},
-	"pueblo_center": {
-		"name": "Centro de Pueblo El Pinar",
-		"region": "pueblo",
-		"local_position": Vector2(400.0, 200.0),
-		"type": "town_center",
-		"quest_id": "primeras_llamas",
-	},
-	"sendero_end": {
-		"name": "Final del Sendero de la Quebrada",
-		"region": "sendero",
-		"local_position": Vector2(800.0, 500.0),
-		"type": "exit",
-		"quest_id": "bosque_en_peligro",
-	},
+\t# ===========================================================================
+\t# REGIÓN: FRONTERA (ya existente, conservada y ampliada)
+\t# ===========================================================================
+\t"player_spawn": {
+\t\t"name": "Punto de inicio",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(160.0, 700.0),
+\t\t"type": "spawn",
+\t\t"description": "Donde comienza tu aventura, al borde del bosque de Frontera.",
+\t},
+\t"refuge": {
+\t\t"name": "Refugio de emergencia",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1440.0, 880.0),
+\t\t"type": "safe_zone",
+\t\t"quest_id": "rescate",
+\t\t"description": "Claro con el cartel de refugio. Aquí se llevan los animales rescatados y se repara el equipamiento.",
+\t},
+\t"pond": {
+\t\t"name": "Pozo de agua",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(330.0, 540.0),
+\t\t"type": "resource",
+\t\t"description": "Estanque de agua para rellenar la cantimplora y llenar cubos contra el fuego.",
+\t},
+\t"elena": {
+\t\t"name": "Elena, guardabosques",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(250.0, 668.0),
+\t\t"type": "npc",
+\t\t"quest_id": "bosque_en_peligro",
+\t\t"description": "Guardabosques de la Frontera. Te enseña a observar el entorno y examinar indicios.",
+\t},
+\t"mateo": {
+\t\t"name": "Mateo, vecino",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(470.0, 600.0),
+\t\t"type": "npc",
+\t\t"description": "Vive cerca del estanque desde hace cuarenta años. Conoce los secretos del sendero.",
+\t},
+\t"tomas": {
+\t\t"name": "Tomás, bombero forestal",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1010.0, 690.0),
+\t\t"type": "npc",
+\t\t"quest_id": "primeras_llamas",
+\t\t"description": "Coordinador de emergencias. Te enseña a apagar incendios con el extintor.",
+\t},
+\t"lucia": {
+\t\t"name": "Dra. Lucía",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1400.0, 560.0),
+\t\t"type": "npc",
+\t\t"quest_id": "futuro",
+\t\t"description": "Investigadora ambiental. Estudia la recuperación de la fauna tras los incendios.",
+\t},
+\t"clue_fogata": {
+\t\t"name": "Restos de fogata",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(600.0, 780.0),
+\t\t"type": "clue",
+\t\t"quest_id": "bosque_en_peligro",
+\t\t"description": "Restos de una fogata mal apagada. Posible origen del incendio del sendero.",
+\t},
+\t"clue_colilla": {
+\t\t"name": "Colilla",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(735.0, 700.0),
+\t\t"type": "clue",
+\t\t"quest_id": "bosque_en_peligro",
+\t\t"description": "Una colilla junto a la hierba seca. Un descuido humano puede iniciar un gran incendio.",
+\t},
+\t"clue_hierba": {
+\t\t"name": "Hierba seca",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(860.0, 590.0),
+\t\t"type": "clue",
+\t\t"quest_id": "bosque_en_peligro",
+\t\t"description": "Hierba amarilla y quebradiza. Con la sequía, es combustible para el fuego.",
+\t},
+\t"zone_a": {
+\t\t"name": "Foco junto al sendero",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1180.0, 650.0),
+\t\t"type": "fire_zone",
+\t\t"quest_id": "primeras_llamas",
+\t\t"description": "Foco activo junto al sendero. Debe apagarse para evitar que el fuego se propague.",
+\t},
+\t"zone_b": {
+\t\t"name": "Focos del este",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1760.0, 520.0),
+\t\t"type": "fire_zone",
+\t\t"quest_id": "recuperar",
+\t\t"description": "Focos de incendio en el este de la Frontera, cerca de donde quedaron atrapados los animales.",
+\t},
+\t"rabbit_rescue": {
+\t\t"name": "Conejo atrapado",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1650.0, 420.0),
+\t\t"type": "animal",
+\t\t"quest_id": "rescate",
+\t\t"description": "Conejo atrapado entre zarzas. Debe ser rescatado y llevado al refugio.",
+\t},
+\t"squirrel_rescue": {
+\t\t"name": "Ardilla atrapada",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1950.0, 650.0),
+\t\t"type": "animal",
+\t\t"quest_id": "rescate",
+\t\t"description": "Ardilla atrapada en un árbol quemado. Necesita ayuda para bajar a salvo.",
+\t},
+\t"deer_rescue": {
+\t\t"name": "Venado atrapado",
+\t\t"region": "frontera",
+\t\t"local_position": Vector2(1860.0, 410.0),
+\t\t"type": "animal",
+\t\t"quest_id": "rescate",
+\t\t"description": "Venado joven atrapado entre árboles caídos. Debe ser liberado y llevado al refugio.",
+\t},
+\t# ===========================================================================
+\t# REGIÓN: SENDERO DE LA QUEBRADA
+\t# ===========================================================================
+\t"sendero_end": {
+\t\t"name": "Final del Sendero de la Quebrada",
+\t\t"region": "sendero",
+\t\t"local_position": Vector2(800.0, 500.0),
+\t\t"type": "entrance",
+\t\t"quest_id": "bosque_en_peligro",
+\t\t"description": "Punto de conexión entre la Frontera y el Sendero de la Quebrada.",
+\t},
+\t"sendero_tower": {
+\t\t"name": "Torre de vigilancia del Sendero",
+\t\t"region": "sendero",
+\t\t"local_position": Vector2(1200.0, 300.0),
+\t\t"type": "tower",
+\t\t"description": "Antigua torre de vigilancia forestal. Desde aquí se divisan focos a kilómetros.",
+\t},
+\t"sendero_camp": {
+\t\t"name": "Campamento forestal",
+\t\t"region": "sendero",
+\t\t"local_position": Vector2(400.0, 800.0),
+\t\t"type": "camp",
+\t\t"description": "Campamento de brigadas forestales con suministros y herramientas para el combate del fuego.",
+\t},
+\t"sendero_bridge": {
+\t\t"name": "Puente sobre el Quebrada",
+\t\t"region": "sendero",
+\t\t"local_position": Vector2(1000.0, 650.0),
+\t\t"type": "bridge",
+\t\t"description": "Puesto de control sobre el río. Cruce estratégico entre ambas orillas del bosque.",
+\t},
+\t"sendero_cave": {
+\t\t"name": "Cueva del Oso",
+\t\t"region": "sendero",
+\t\t"local_position": Vector2(1400.0, 900.0),
+\t\t"type": "cave",
+\t\t"description": "Cueva natural donde la fauna se refugia durante los incendios. Zona de alto valor ecológico.",
+\t},
+\t"sendero_lake": {
+\t\t"name": "Lago Escondido",
+\t\t"region": "sendero",
+\t\t"local_position": Vector2(1500.0, 200.0),
+\t\t"type": "lake",
+\t\t"description": "Lago de montaña con aguas cristalinas. Fuente de agua ilimitada para combatir incendios.",
+\t},
+\t# ===========================================================================
+\t# REGIÓN: PUEBLO EL PINAR
+\t# ===========================================================================
+\t"pueblo_center": {
+\t\t"name": "Centro de Pueblo El Pinar",
+\t\t"region": "pueblo",
+\t\t"local_position": Vector2(400.0, 200.0),
+\t\t"type": "town_center",
+\t\t"quest_id": "primeras_llamas",
+\t\t"description": "Plaza principal del pueblo. Aquí se reúnen los vecinos y se reparten los suministros.",
+\t},
+\t"pueblo_shop": {
+\t\t"name": "Tienda General",
+\t\t"region": "pueblo",
+\t\t"local_position": Vector2(600.0, 300.0),
+\t\t"type": "shop",
+\t\t"description": "Tienda de suministros forestales. Vende herramientas, agua, semillas y botiquines.",
+\t},
+\t"pueblo_station": {
+\t\t"name": "Estación de Bomberos",
+\t\t"region": "pueblo",
+\t\t"local_position": Vector2(800.0, 400.0),
+\t\t"type": "station",
+\t\t"description": "Base de operaciones de los bomberos forestales. Aquí se entrena y se recibe equipamiento.",
+\t},
+\t"pueblo_emergency": {
+\t\t"name": "Centro de Emergencias",
+\t\t"region": "pueblo",
+\t\t"local_position": Vector2(300.0, 600.0),
+\t\t"type": "emergency",
+\t\t"description": "Centro de coordinación de rescates y ayuda médica para animales y personas.",
+\t},
+\t"pueblo_ruin": {
+\t\t"name": "Casa abandonada",
+\t\t"region": "pueblo",
+\t\t"local_position": Vector2(950.0, 100.0),
+\t\t"type": "ruin",
+\t\t"description": "Vivienda en ruinas al borde del bosque. Puede contener suministros olvidados.",
+\t},
+\t# ===========================================================================
+\t# REGIÓN: SIERRAS DEL NORTE
+\t# ===========================================================================
+\t"montanhas_start": {
+\t\t"name": "Entrada a las Sierras del Norte",
+\t\t"region": "montanhas",
+\t\t"local_position": Vector2(900.0, 0.0),
+\t\t"type": "entrance",
+\t\t"quest_id": "rescate",
+\t\t"description": "Pasaje de montaña que conecta la Frontera con las Sierras del Norte.",
+\t},
+\t"montanhas_tower": {
+\t\t"name": "Mirador del Águila",
+\t\t"region": "montanhas",
+\t\t"local_position": Vector2(1600.0, 200.0),
+\t\t"type": "tower",
+\t\t"description": "Mirador en la cima de una ladera. Vista panorámica de toda la región y focos distantes.",
+\t},
+\t"montanhas_research": {
+\t\t"name": "Estación de Investigación",
+\t\t"region": "montanhas",
+\t\t"local_position": Vector2(400.0, 1200.0),
+\t\t"type": "research",
+\t\t"description": "Centro de estudio de fauna de montaña. Aquí se registran especies en peligro.",
+\t},
+\t"montanhas_refuge": {
+\t\t"name": "Refugio de Montaña",
+\t\t"region": "montanhas",
+\t\t"local_position": Vector2(1200.0, 1400.0),
+\t\t"type": "safe_zone",
+\t\t"description": "Refugio rústico para caminantes y rescatistas en la alta montaña.",
+\t},
+\t"montanhas_cave": {
+\t\t"name": "Cueva del Cóndor",
+\t\t"region": "montanhas",
+\t\t"local_position": Vector2(1500.0, 800.0),
+\t\t"type": "cave",
+\t\t"description": "Cueva de difícil acceso donde anidan aves rapaces en peligro de extinción.",
+\t},
+\t# ===========================================================================
+\t# REGIÓN: LLANURA QUEMADA
+\t# ===========================================================================
+\t"llanura_start": {
+\t\t"name": "Entrada a la Llanura Quemada",
+\t\t"region": "llanura",
+\t\t"local_position": Vector2(0.0, 600.0),
+\t\t"type": "entrance",
+\t\t"quest_id": "recuperar",
+\t\t"description": "Zona de transición hacia la llanura afectada por el fuego anterior.",
+\t},
+\t"llanura_zone": {
+\t\t"name": "Zona de Tala Controlada",
+\t\t"region": "llanura",
+\t\t"local_position": Vector2(800.0, 400.0),
+\t\t"type": "zone",
+\t\t"description": "Área donde se talaron árboles para crear cortafuegos. Puede ampliarse o reducirse.",
+\t},
+\t"llanura_camp": {
+\t\t"name": "Campamento de Rescate Animal",
+\t\t"region": "llanura",
+\t\t"local_position": Vector2(1600.0, 200.0),
+\t\t"type": "rescue",
+\t\t"description": "Base de operaciones para la recuperación y liberación de fauna en la llanura.",
+\t},
+\t"llanura_bridge": {
+\t\t"name": "Puente Roto",
+\t\t"region": "llanura",
+\t\t"local_position": Vector2(1000.0, 900.0),
+\t\t"type": "bridge",
+\t\t"description": "Puente colapsado sobre el arroyo seco. Necesita reparación para restaurar el paso.",
+\t},
+\t"llanura_lake": {
+\t\t"name": "Lago Seco",
+\t\t"region": "llanura",
+\t\t"local_position": Vector2(1800.0, 700.0),
+\t\t"type": "lake",
+\t\t"description": "Lago casi evaporado por el incendio. Su restauración es prioritaria para el ecosistema.",
+\t},
 }
 
 const QUEST_REGION_UNLOCKS := {
-	"bosque_en_peligro": "sendero",
-	"primeras_llamas": "pueblo",
-	"rescate": "montanhas",
-	"recuperar": "llanura",
+\t"bosque_en_peligro": "sendero",
+\t"primeras_llamas": "pueblo",
+\t"rescate": "montanhas",
+\t"recuperar": "llanura",
 }
-const LOCATION_DISCOVERY_RADIUS := 110.0
-
-var discovered_regions: Array[String] = ["frontera"]
-var discovered_locations: Array[String] = ["player_spawn", "refuge", "pond"]
-var pending_spawn_region := ""
-var player_region := "frontera"
-var player_local_position := Vector2.ZERO
-var _has_player_position := false
-
-
-func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS
-	Quests.quest_completed.connect(_on_quest_completed)
-
-
-func reset_progress() -> void:
-	discovered_regions = ["frontera"]
-	discovered_locations = ["player_spawn", "refuge", "pond"]
-	player_region = "frontera"
-	player_local_position = Vector2.ZERO
-	_has_player_position = false
-	pending_spawn_region = ""
-	regions_changed.emit()
-
-
-func get_regions() -> Dictionary:
-	return REGIONS
-
-
-func get_region_ids() -> Array[String]:
-	return REGION_ORDER.duplicate()
-
-
-func get_region_info(region_id: String) -> Dictionary:
-	return REGIONS.get(region_id, {})
-
-
-func get_region_name(region_id: String) -> String:
-	return str(REGIONS.get(region_id, {}).get("name", region_id))
-
-
-func get_region_bounds(region_id: String) -> Rect2:
-	var region: Dictionary = REGIONS.get(region_id, {})
-	if region.is_empty():
-		return Rect2()
-	return Rect2(region.get("origin", Vector2.ZERO), region.get("size", Vector2.ZERO))
-
-
-func get_world_bounds() -> Rect2:
-	var bounds := Rect2()
-	var first_region := true
-	for region_id in REGION_ORDER:
-		var region_bounds := get_region_bounds(region_id)
-		if first_region:
-			bounds = region_bounds
-			first_region = false
-		else:
-			bounds = bounds.merge(region_bounds)
-	return bounds
-
-
-func get_world_size() -> Vector2:
-	return get_world_bounds().size
-
-
-func to_global_map_position(region_id: String, local_position: Vector2) -> Vector2:
-	var region: Dictionary = REGIONS.get(region_id, {})
-	return region.get("origin", Vector2.ZERO) + local_position
-
-
-func update_player_position(region_id: String, local_position: Vector2) -> void:
-	if not REGIONS.has(region_id):
-		return
-	player_region = region_id
-	player_local_position = local_position
-	_has_player_position = true
-	if GameState.current_region != region_id:
-		GameState.set_region(region_id)
-	var global_position := to_global_map_position(region_id, local_position)
-	_discover_nearby_locations(region_id, local_position)
-	player_position_updated.emit(global_position, region_id)
-
-
-func get_player_region() -> String:
-	return player_region
-
-
-func get_player_position() -> Vector2:
-	return to_global_map_position(player_region, player_local_position)
-
-
-func has_player_position() -> bool:
-	return _has_player_position
-
-
-func is_discovered(region_id: String) -> bool:
-	return region_id in discovered_regions
-
-
-func discover_region(region_id: String, notify: bool = true) -> void:
-	if not REGIONS.has(region_id) or is_discovered(region_id):
-		return
-	discovered_regions.append(region_id)
-	var entry_id := str(REGIONS[region_id].get("entry_location", ""))
-	if entry_id != "":
-		discover_location(entry_id)
-	region_discovered.emit(region_id)
-	regions_changed.emit()
-	if notify:
-		GameState.post_message("Nueva zona descubierta: %s" % get_region_name(region_id))
-
-
-func is_location_discovered(location_id: String) -> bool:
-	return location_id in discovered_locations
-
-
-func discover_location(location_id: String) -> void:
-	if not LOCATION_DEFS.has(location_id) or is_location_discovered(location_id):
-		return
-	discovered_locations.append(location_id)
-	location_discovered.emit(location_id)
-	regions_changed.emit()
-	GameState.post_message("Ubicación descubierta: %s" % LOCATION_DEFS[location_id]["name"])
-
-
-func get_location_info(location_id: String) -> Dictionary:
-	if not LOCATION_DEFS.has(location_id):
-		return {}
-	var info: Dictionary = LOCATION_DEFS[location_id].duplicate(true)
-	var region_id := str(info.get("region", "frontera"))
-	var global_position := to_global_map_position(region_id, info.get("local_position", Vector2.ZERO))
-	info["id"] = location_id
-	info["position"] = global_position
-	info["global_position"] = global_position
-	info["discovered"] = is_location_discovered(location_id)
-	info["region_discovered"] = is_discovered(region_id)
-	var quest_id := str(info.get("quest_id", ""))
-	info["active_quest"] = quest_id != "" and Quests.is_active(quest_id)
-	return info
-
-
-func get_map_markers() -> Array[Dictionary]:
-	var markers: Array[Dictionary] = []
-	for location_id in LOCATION_DEFS:
-		markers.append(get_location_info(str(location_id)))
-	return markers
-
-
-## Alias legado conservado para los scripts del minimapa importado.
-func get_map_markets() -> Array[Dictionary]:
-	return get_map_markers()
-
-
-func get_scene_path(region_id: String) -> String:
-	return str(REGIONS.get(region_id, {}).get("scene", ""))
-
-
-func can_travel_to_region(region_id: String) -> bool:
-	var scene_path := get_scene_path(region_id)
-	return scene_path != "" and ResourceLoader.exists(scene_path)
-
-
-func go_to_region(region_id: String) -> void:
-	if not REGIONS.has(region_id):
-		return
-	if not is_discovered(region_id):
-		GameState.post_message("Esa región todavía no se ha descubierto.")
-		return
-	if not can_travel_to_region(region_id):
-		GameState.post_message("La escena jugable de %s aún no está incluida." % get_region_name(region_id))
-		return
-	GameState.set_region(region_id)
-	pending_spawn_region = region_id
-	Transition.go_to(get_scene_path(region_id))
-
-
-func set_player_region(region_id: String) -> void:
-	if not REGIONS.has(region_id):
-		return
-	player_region = region_id
-	GameState.set_region(region_id)
-
-
-func all_region_ids() -> Array[String]:
-	return get_region_ids()
-
-
-func export_data() -> Dictionary:
-	return {
-		"discovered_regions": discovered_regions.duplicate(),
-		"discovered_locations": discovered_locations.duplicate(),
-		"player_region": player_region,
-		"player_local_position": [player_local_position.x, player_local_position.y],
-	}
-
-
-func import_data(data: Dictionary) -> void:
-	discovered_regions.clear()
-	var region_data: Array = data.get("discovered_regions", data.get("discovered", ["frontera"]))
-	for value in region_data:
-		var region_id := str(value)
-		if REGIONS.has(region_id) and not region_id in discovered_regions:
-			discovered_regions.append(region_id)
-	if not "frontera" in discovered_regions:
-		discovered_regions.push_front("frontera")
-
-	discovered_locations.clear()
-	var location_data: Array = data.get("discovered_locations", ["player_spawn", "refuge", "pond"])
-	for value in location_data:
-		var location_id := str(value)
-		if LOCATION_DEFS.has(location_id) and not location_id in discovered_locations:
-			discovered_locations.append(location_id)
-
-	player_region = str(data.get("player_region", data.get("current_region", GameState.current_region)))
-	if not REGIONS.has(player_region):
-		player_region = "frontera"
-	var saved_position: Variant = data.get("player_local_position", [])
-	if saved_position is Array and saved_position.size() == 2:
-		player_local_position = Vector2(float(saved_position[0]), float(saved_position[1]))
-		_has_player_position = true
-	else:
-		player_local_position = Vector2.ZERO
-		_has_player_position = false
-
-	_sync_completed_quest_discoveries()
-	regions_changed.emit()
-
-
-func _sync_completed_quest_discoveries() -> void:
-	for quest_id in QUEST_REGION_UNLOCKS:
-		if Quests.is_done(str(quest_id)):
-			var region_id := str(QUEST_REGION_UNLOCKS[quest_id])
-			if not is_discovered(region_id):
-				discovered_regions.append(region_id)
-				var entry_id := str(REGIONS[region_id].get("entry_location", ""))
-				if entry_id != "" and not is_location_discovered(entry_id):
-					discovered_locations.append(entry_id)
-
-
-func _on_quest_completed(quest_id: String) -> void:
-	if QUEST_REGION_UNLOCKS.has(quest_id):
-		discover_region(str(QUEST_REGION_UNLOCKS[quest_id]))
-
-
-func _discover_nearby_locations(region_id: String, local_position: Vector2) -> void:
-	for location_id in LOCATION_DEFS:
-		var info: Dictionary = LOCATION_DEFS[location_id]
-		if str(info.get("region", "")) != region_id or is_location_discovered(str(location_id)):
-			continue
-		var target: Vector2 = info.get("local_position", Vector2.ZERO)
-		if local_position.distance_to(target) <= LOCATION_DISCOVERY_RADIUS:
-			discover_location(str(location_id))

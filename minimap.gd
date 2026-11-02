@@ -1,5 +1,7 @@
 extends TextureRect
 ## Minimapa del mundo conectado al autoload WorldManager.
+## Muestra terreno por región, marcadores de ubicación descubiertos,
+## marcadores de misiones activas y posición del jugador.
 
 const MINIMAP_SIZE := Vector2i(200, 150)
 const MARKER_SIZE := Vector2(7.0, 7.0)
@@ -146,8 +148,10 @@ func _world_to_minimap(world_position: Vector2) -> Vector2:
 func _on_player_position_updated(_global_position: Vector2, _region_id: String) -> void:
 	_update_player_marker()
 
+
 func _on_location_discovered(_location_id: String) -> void:
 	_refresh_map()
+
 
 func get_world_size() -> Vector2:
 	return _world_manager.get_world_size()

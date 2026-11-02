@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dlbgf0l0jq1y7"]
 
-[ext_resource type="Script" uid="uid://cu1ep2chqumci" path="res://minimap.gd" id="1"]
+[ext_resource type="Script" path="res://minimap.gd" id="1"]
 
 [node name="Minimap" type="TextureRect"]
 custom_minimum_size = Vector2(200, 150)
@@ -41,4 +41,3 @@ custom_minimum_size = Vector2(9, 9)
 size = Vector2(9, 9)
 color = Color(0.36, 0.86, 0.96, 1)
 mouse_filter = 2
-
