@@ -1,0 +1,144 @@
+extends Node2D
+
+const WORLD_SIZE := Vector2(1800, 1200)
+const PLAYER_SPEED := 230.0
+var player_pos := Vector2(480, 270)
+var fires: Array[Vector2] = [Vector2(700, 360), Vector2(1150, 650), Vector2(400, 820)]
+var fire_health: Array[float] = [100.0, 100.0, 100.0]
+var message := "MISION: Acercate a un fuego y pulsa E para intentar apagarlo."
+var extinguished := 0
+var elapsed := 0.0
+var game_over := false
+
+func _ready() -> void:
+	get_window().title = "Llamas en el Bosque - Beta"
+
+func _process(delta: float) -> void:
+	elapsed += delta
+	if game_over:
+		if Input.is_action_just_pressed("restart"):
+			get_tree().reload_current_scene()
+		queue_redraw()
+		return
+	var direction := Vector2.ZERO
+	if Input.is_action_pressed("move_up"):
+		direction.y -= 1
+	if Input.is_action_pressed("move_down"):
+		direction.y += 1
+	if Input.is_action_pressed("move_left"):
+		direction.x -= 1
+	if Input.is_action_pressed("move_right"):
+		direction.x += 1
+	if direction != Vector2.ZERO:
+		player_pos += direction.normalized() * PLAYER_SPEED * delta
+	player_pos.x = clampf(player_pos.x, 24, WORLD_SIZE.x - 24)
+	player_pos.y = clampf(player_pos.y, 65, WORLD_SIZE.y - 24)
+	if Input.is_action_just_pressed("interact"):
+		_try_extinguish()
+	if extinguished == fires.size():
+		game_over = true
+		message = "¡MISION COMPLETADA! Protegiste el bosque. Pulsa R para jugar de nuevo."
+	queue_redraw()
+
+func _try_extinguish() -> void:
+	var closest := -1
+	var distance := 999999.0
+	for i in range(fires.size()):
+		if fire_health[i] <= 0:
+			continue
+		var d := player_pos.distance_to(fires[i])
+		if d < distance:
+			distance = d
+			closest = i
+	if closest >= 0 and distance < 95:
+		fire_health[closest] = 0
+		extinguished += 1
+		message = "Fuego controlado. Recuerda: reporta los incendios y no te acerques a llamas reales."
+	else:
+		message = "Acercate a menos de 95 px de un foco de fuego para interactuar."
+
+func _draw() -> void:
+	# Fondo de bosque estilizado
+	draw_rect(Rect2(Vector2.ZERO, WORLD_SIZE), Color("183f32"))
+	for x in range(0, int(WORLD_SIZE.x), 100):
+		for y in range(80, int(WORLD_SIZE.y), 100):
+			var p := Vector2(x + (int(y / 100) % 2) * 35, y)
+			_draw_tree(p)
+	# Sendero sinuoso
+	var path_points := PackedVector2Array([Vector2(0, 300), Vector2(260, 340), Vector2(470, 500), Vector2(720, 530), Vector2(930, 690), Vector2(1200, 730), Vector2(1500, 850), Vector2(1800, 820)])
+	draw_polyline(path_points, Color("8a7853"), 72.0, true)
+	draw_polyline(path_points, Color("b4a077"), 4.0, true)
+	# Incendios activos
+	for i in range(fires.size()):
+		if fire_health[i] > 0:
+			_draw_fire(fires[i], elapsed + float(i))
+		else:
+			draw_circle(fires[i], 22, Color("344c3b"))
+			draw_arc(fires[i], 22, 0, TAU, 32, Color("8ca78a"), 3.0)
+	# Jugador
+	_draw_player(player_pos)
+	# Interfaz
+	draw_rect(Rect2(0, 0, 960, 76), Color(0.035, 0.09, 0.07, 0.92))
+	draw_string(ThemeDB.fallback_font, Vector2(24, 31), "LLAMAS EN EL BOSQUE", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("f4f1d5"))
+	draw_string(ThemeDB.fallback_font, Vector2(24, 57), "Incendios controlados: %d / %d" % [extinguished, fires.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("d3e3c6"))
+	draw_rect(Rect2(0, 465, 960, 75), Color(0.035, 0.09, 0.07, 0.93))
+	draw_string(ThemeDB.fallback_font, Vector2(24, 491), message, HORIZONTAL_ALIGNMENT_LEFT, 910, 15, Color("fff0cf"))
+	draw_string(ThemeDB.fallback_font, Vector2(24, 520), "Mover: WASD / flechas     Interactuar: E     Reiniciar: R", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("c4d8c4"))
+	if game_over:
+		draw_rect(Rect2(180, 185, 600, 140), Color(0.02, 0.08, 0.05, 0.96))
+		draw_string(ThemeDB.fallback_font, Vector2(270, 240), "¡BOSQUE PROTEGIDO!", HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color("f4e6a4"))
+		draw_string(ThemeDB.fallback_font, Vector2(270, 280), "Mision completada - pulsa R para reiniciar", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("ffffff"))
+
+func _draw_tree(p: Vector2) -> void:
+	# Dejar libre la zona superior de la interfaz
+	if p.y < 90:
+		return
+	draw_rect(Rect2(p + Vector2(-5, 4), Vector2(10, 20)), Color("684b32"))
+	var shade := fmod(absf(sin(p.x * 0.07 + p.y * 0.03)), 1.0)
+	var c := Color("245b3d").lerp(Color("34714a"), shade * 0.7)
+	draw_circle(p, 23, Color("102f27"))
+	draw_circle(p + Vector2(-3, -4), 19, c)
+	draw_circle(p + Vector2(8, -8), 13, c.lightened(0.08))
+
+func _draw_fire(p: Vector2, t: float) -> void:
+	draw_circle(p, 35, Color(0.95, 0.18, 0.03, 0.13))
+	var flicker := sin(t * 8.0) * 4.0
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-22, 18), p + Vector2(-17, -8 - flicker), p + Vector2(-5, 1), p + Vector2(2, -29 - flicker), p + Vector2(18, 1), p + Vector2(23, 18)]), Color("e84b20"))
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-12, 16), p + Vector2(-3, -3), p + Vector2(4, -17 - flicker), p + Vector2(14, 16)]), Color("ffb52e"))
+	draw_circle(p + Vector2(0, 10), 9, Color("fff0a1"))
+
+func _draw_player(p: Vector2) -> void:
+	draw_circle(p + Vector2(0, 13), 13, Color(0, 0, 0, 0.25))
+	draw_circle(p, 12, Color("e3bd8a"))
+	draw_rect(Rect2(p + Vector2(-10, -3), Vector2(20, 22)), Color("3a83a1"))
+	draw_circle(p + Vector2(-4, -2), 2, Color("182a2a"))
+	draw_circle(p + Vector2(4, -2), 2, Color("182a2a"))
+	draw_rect(Rect2(p + Vector2(-11, 17), Vector2(8, 8)), Color("28323a"))
+	draw_rect(Rect2(p + Vector2(3, 17), Vector2(8, 8)), Color("28323a"))
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_W, KEY_UP: pass
+			KEY_S, KEY_DOWN: pass
+			KEY_A, KEY_LEFT: pass
+			KEY_D, KEY_RIGHT: pass
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	pass
+
+func _enter_tree() -> void:
+	_add_key_action("move_up", [KEY_W, KEY_UP])
+	_add_key_action("move_down", [KEY_S, KEY_DOWN])
+	_add_key_action("move_left", [KEY_A, KEY_LEFT])
+	_add_key_action("move_right", [KEY_D, KEY_RIGHT])
+	_add_key_action("interact", [KEY_E])
+	_add_key_action("restart", [KEY_R])
+
+func _add_key_action(action_name: String, keys: Array) -> void:
+	if not InputMap.has_action(action_name):
+		InputMap.add_action(action_name)
+	for key in keys:
+		var event := InputEventKey.new()
+		event.keycode = key
+		InputMap.action_add_event(action_name, event)

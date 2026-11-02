@@ -1,0 +1,33 @@
+# Llamas en el Bosque
+
+Aventura educativa 2D desarrollada para Godot 4.7.2. La partida se inicia desde el menú principal y conduce a la región jugable Zona de Frontera, donde se conectan movimiento, personajes, diálogo, misiones, fuego, rescate de animales, HUD y guardado.
+
+## Jugar
+
+1. Abre `project.godot` con Godot 4.7.2 estándar (no .NET) y ejecuta el proyecto.
+2. Inicia una partida nueva o continúa el punto de control disponible.
+3. Sigue las indicaciones de la misión y conversa con los personajes.
+4. Examina indicios, controla focos de fuego, ayuda a la fauna y toma la decisión final sobre el futuro del bosque.
+
+## Controles
+
+- **WASD / flechas**: moverse.
+- **Shift**: correr.
+- **E**: interactuar, examinar o ayudar.
+- **Espacio**: observar el entorno y usar agua según la situación.
+- **J**: diario.
+- **I**: mochila.
+- **M**: mapa del mundo.
+- **Rueda del ratón / botones + y −**: acercar o alejar el mapa.
+- **Arrastrar con el botón izquierdo**: desplazar el mapa.
+- **Esc**: pausar o cerrar el mapa.
+
+El mapa incluye Zona de Frontera, Sendero de la Quebrada, Pueblo El Pinar, Sierras del Norte y Llanura Quemada. El progreso de las misiones descubre regiones y ubicaciones. En los archivos actuales solo está incluida la escena jugable de Zona de Frontera; las otras cuatro se muestran en el mapa, pero todavía no se pueden visitar.
+
+El punto de control se guarda en `user://save.json`. El proyecto incluye recursos de audio para sus ambientes y música.
+
+El control de incendios es una mecánica ficticia. En un incendio real, aléjate y avisa a las autoridades.
+
+## Exportar a Windows
+
+En Godot abre **Proyecto → Exportar**, instala las plantillas que correspondan a tu versión, añade **Windows Desktop** y exporta el proyecto a la carpeta que prefieras.
