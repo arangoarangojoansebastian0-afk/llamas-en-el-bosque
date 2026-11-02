@@ -35,6 +35,39 @@
   - Los nombres de las regiones, descripciones y ubicaciones de entrada están definidos en el mapeo en WorldManager.
   - Solo Frontera tiene una escena jugable dentro del proyecto importado; las otras siguen pendientes.
 
+### Fase 4: Herramientas, inventario y mecánicas de exploración (COMPLETADA)
+- **Nuevas herramientas implementadas y funcionales**:
+  - **Hacha forestal**: tala árboles secos (grupo `dry_wood`), crea cortafuegos registrados en WorldManager, obtiene madera como recurso.
+  - **Pala**: cubre focos de fuego con tierra, reduce intensidad de FireCell (aplica 30 puntos de agua equivalente).
+  - **Detector de calor**: detecta focos a través de humo (radio 300m), revela FireCell cercanos, 8 usos.
+  - **Kit de reparación**: repara estructuras dañadas (puentes, torres - grupo `repairable`), 2 usos, registra reparación en WorldManager.
+  - **Botiquín animal**: cura animales heridos/atrapados (grupo `injured_animal`), 4 usos, permite rescate seguro.
+  - **Linterna**: ilumina zonas oscuras/bajo humo denso (PointLight2D dinámico), uso ilimitado, toggle con Espacio.
+  - **Radio profesional / Equipo de comunicación**: transmite información de emergencia, detecta focos en radio 800m, radio_com solicita suministros por 50 monedas.
+  - **Mochila grande**: duplica capacidad de agua (5→10), uso ilimitado.
+  - **Extintor**: apaga focos al instante (200 poder), 5 usos.
+  - **Traje ignífugo**: reduce daño de fuego 70%, uso ilimitado.
+
+- **Sistema de acciones integrado en Player.gd**:
+  - Prioridad: Detector → Radio → Kit reparación → Botiquín animal → Linterna → Pala (fuego) → Extintor/Agua → Hacha (sin fuego) → Observar.
+  - Todas las herramientas consumen usos reales, actualizan HUD e inventario, reproducen sonidos y mensajes.
+
+- **Inventario y HUD mejorados**:
+  - InventoryPanel: botones de uso para cada herramienta (medkit, kit_reparacion, botiquin_animal, linterna, radio).
+  - HudView: indicadores visuales de todas las herramientas equipadas con contadores de usos.
+  - Íconos en HUD: TRAJE, EXT.xN, LINTERNA, RADIO, COM, HACHA, PALA, DET.xN, KIT.xN, BOT.ANIMAL, MOCHILA+.
+
+- **Mecánicas de mundo en WorldManager**:
+  - `register_firebreak(position)`: registra cortafuegos creados con hacha, reduce propagación de fuego en zona.
+  - `register_repair(position)`: registra estructuras reparadas, habilita viajes/accesos.
+  - `get_firebreaks()` / `get_repairs()`: consulta para minimapa y guardado.
+  - Seguimiento de recursos: wood, soil_sample, supply_box.
+  - Integración con minimapa: muestra cortafuegos y reparaciones.
+
+- **Base de datos de items expandida (ItemDatabase.gd)**:
+  - 22 items totales: 10 herramientas, 3 suministros básicos, items especiales.
+  - Cada herramienta con nombre, descripción, precio, categoría e icono.
+
 ## Comprobaciones realizadas
 
 Entorno de validación: Godot `4.7.2.stable.official.ed1daf0bf` para Linux.
@@ -44,9 +77,11 @@ Entorno de validación: Godot `4.7.2.stable.official.ed1daf0bf` para Linux.
 - Carga e instanciación de escenas: 7 escenas, 0 errores.
 - Pruebas del mapa: posición global, descubrimiento por proximidad, desbloqueo por misión, protección ante escenas ausentes, zoom, desplazamiento, selección de región y lectura de coordenadas.
 - Prueba de integración de Frontera: jugador, HUD, minimapa, misión inicial, apertura del mapa y escritura, lectura y restauración de regiones y ubicaciones desde `user://save.json`. Los procesos de prueba headless terminan forzadamente y Godot informa algunos objetos y recursos todavía activos en ese cierre. No aparecieron errores durante las cargas ni las interacciones probadas; no se ha verificado el cierre normal de una sesión gráfica.
+- Verificación de sintaxis de todas las herramientas nuevas en Player.gd, InventoryPanel.gd, HudView.gd, WorldManager.gd, GameState.gd, ItemDatabase.gd.
 
 ## Pendiente de verificación
 
 - Probar la presentación visual y la entrada de ratón en una ejecución gráfica y en las resoluciones de destino.
 - Añadir o recuperar las escenas jugables faltantes antes de habilitar viajes a las otras cuatro regiones.
 - Probar sonido y exportación en los sistemas operativos de destino.
+- Verificar interacción completa de herramientas en ejecución gráfica: hacha (dry_wood), pala (fire_cell), detector, kit reparación, botiquín animal, linterna, radio.

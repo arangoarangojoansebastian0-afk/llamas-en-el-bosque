@@ -127,6 +127,22 @@ func _on_action() -> void:
 	if GameState.has_tool("detector_calor"):
 		if _detector_scan():
 			return
+	# Prioridad 2: radio para transmitir información de emergencia
+	if GameState.has_tool("radio_pro") or GameState.has_tool("radio_com"):
+		if _use_radio():
+			return
+	# Prioridad 3: kit de reparación para estructuras dañadas
+	if GameState.has_tool("kit_reparacion"):
+		if _repair_structure():
+			return
+	# Prioridad 4: botiquín animal para curar animales heridos
+	if GameState.has_tool("botiquin_animal"):
+		if _heal_animal():
+			return
+	# Prioridad 5: linterna para iluminar zonas oscuras
+	if GameState.has_tool("lantern"):
+		if _toggle_lantern():
+			return
 	var fire := _nearest_fire()
 	if fire != null:
 		# Pala: cubrir fuego con tierra si la tienes
@@ -201,6 +217,7 @@ func _chop_dry_wood() -> bool:
 	GameState.add_resource("wood", 1)
 	GameState.add_stat("wood_chopped")
 	GameState.post_message("Talas un árbol seco. Cortafuego abierto.")
+	WorldManager.register_firebreak(target.global_position)
 	return true
 
 func _nearest_dry_wood() -> Node2D:
@@ -215,6 +232,119 @@ func _nearest_dry_wood() -> Node2D:
 			best_distance = distance
 			best = candidate
 	return best
+
+## Kit de reparación: repara puentes, torres y estructuras dañadas.
+func _repair_structure() -> bool:
+	var target := _nearest_repairable()
+	if target == null:
+		return false
+	if global_position.distance_to(target.global_position) > INTERACT_RANGE + 15.0:
+		return false
+	if not GameState.use_tool("kit_reparacion"):
+		GameState.post_message("Kit de reparación sin usos.")
+		return false
+	_observe_timer = 1.0
+	_observe_visual = 0.4
+	Sound.play("plant", -2.0)
+	target.repair(self)
+	GameState.add_stat("structures_repaired")
+	GameState.post_message("Estructura reparada. El paso está habilitado.")
+	WorldManager.register_repair(target.global_position)
+	return true
+
+func _nearest_repairable() -> Node2D:
+	var best: Node2D = null
+	var best_distance := INTERACT_RANGE + 15.0
+	for node in get_tree().get_nodes_in_group("repairable"):
+		var candidate := node as Node2D
+		if candidate == null or not candidate.has_method("repair"):
+			continue
+		var distance := global_position.distance_to(candidate.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = candidate
+	return best
+
+## Botiquín animal: cura heridas a animales rescatados.
+func _heal_animal() -> bool:
+	var target := _nearest_injured_animal()
+	if target == null:
+		return false
+	if global_position.distance_to(target.global_position) > INTERACT_RANGE + 10.0:
+		return false
+	if not GameState.use_tool("botiquin_animal"):
+		GameState.post_message("Botiquín animal sin usos.")
+		return false
+	_observe_timer = 0.5
+	_observe_visual = 0.3
+	Sound.play("pickup", -2.0)
+	target.heal()
+	GameState.add_stat("animals_healed")
+	GameState.post_message("El animal ha sido atendido y puede moverse con seguridad.")
+	return true
+
+func _nearest_injured_animal() -> Node2D:
+	var best: Node2D = null
+	var best_distance := INTERACT_RANGE + 10.0
+	for node in get_tree().get_nodes_in_group("injured_animal"):
+		var candidate := node as Node2D
+		if candidate == null or not candidate.has_method("heal"):
+			continue
+		var distance := global_position.distance_to(candidate.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = candidate
+	return best
+
+## Linterna: ilumina zonas oscuras o con humo denso.
+func _toggle_lantern() -> bool:
+	if not GameState.has_tool("lantern"):
+		return false
+	# Toggle lantern effect on the player camera or self
+	var has_light := has_node("LanternLight")
+	if has_light:
+		var light := get_node("LanternLight") as PointLight2D
+		light.queue_free()
+		GameState.post_message("Linterna apagada.")
+	else:
+		var light := PointLight2D.new()
+		light.name = "LanternLight"
+		light.texture = PointLight2D._get_light_texture()
+		light.color = Color("ffd8a0")
+		light.texture_scale = 4.0
+		light.energy = 2.5
+		light.offset = Vector2(0.0, -20.0)
+		add_child(light)
+		GameState.post_message("Linterna encendida. Ilumina la zona cercana.")
+	return true
+
+## Radio: recibe información y activa comunicaciones de emergencia.
+func _use_radio() -> bool:
+	if not (GameState.has_tool("radio_pro") or GameState.has_tool("radio_com")):
+		return false
+	_observe_timer = 0.5
+	_observe_visual = 0.3
+	Sound.play("blip1", -4.0)
+	var found_fires := 0
+	for node in get_tree().get_nodes_in_group("fire_cell"):
+		var cell := node as FireCell
+		if cell == null or not cell.is_dangerous():
+			continue
+		if global_position.distance_to(cell.global_position) <= 800.0:
+			found_fires += 1
+	if found_fires > 0:
+		GameState.post_message("Radio: se detectan %d focos activos en la zona." % found_fires)
+		Sound.play("quest_start", -3.0)
+	else:
+		GameState.post_message("Radio: la zona está tranquila por ahora.")
+	# Request emergency supplies if radio_com
+	if GameState.has_tool("radio_com") and GameState.coins >= 50:
+		GameState.spend_coins(50)
+		GameState.add_resource("water", 2)
+		GameState.add_resource("seed", 3)
+		GameState.post_message("Suministros de emergencia solicitados. Llegarán al refugio.")
+		Sound.play("objective", -2.0)
+	return true
 
 func _throw_water(fire: FireCell) -> void:
 	if _splash_timer > 0.0:
