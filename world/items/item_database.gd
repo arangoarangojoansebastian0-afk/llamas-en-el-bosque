@@ -1,4 +1,4 @@
-﻿class_name ItemDatabase
+class_name ItemDatabase
 extends RefCounted
 ## Base de datos de todos los items del juego: herramientas, suministros y objetos especiales.
 
@@ -34,6 +34,22 @@ const ITEMS := {
 	"backpack_large": {
 		"name": "Mochila grande", "desc": "Capacidad de agua maxima x2.",
 		"price": 90, "category": "tool", "icon": "backpack",
+	},
+	"detector_calor": {
+		"name": "Detector de calor", "desc": "Detecta focos a traves del humo y senala zonas secas. 8 usos.",
+		"price": 75, "category": "tool", "icon": "detector",
+	},
+	"kit_reparacion": {
+		"name": "Kit de reparacion", "desc": "Repara puentes, torres y estructuras danadas. 2 usos.",
+		"price": 85, "category": "tool", "icon": "repair",
+	},
+	"botiquin_animal": {
+		"name": "Botiquin animal", "desc": "Cura heridas a animales rescatados. 4 usos.",
+		"price": 70, "category": "tool", "icon": "medkit_animal",
+	},
+	"radio_com": {
+		"name": "Equipo de comunicacion", "desc": "Recibe coordenadas de emergencia y actualizaciones de mision.",
+		"price": 110, "category": "tool", "icon": "radio_com",
 	},
 	"water": {
 		"name": "Agua", "desc": "Anade 3 unidades de agua.",

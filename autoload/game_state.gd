@@ -29,10 +29,14 @@ const TOOL_MAX_USES := {
 	"medkit": 3,
 	"lantern": -1,
 	"radio_pro": -1,
+	"radio_com": -1,
 	"fire_suit": -1,
 	"axe": -1,
 	"shovel": -1,
 	"backpack_large": -1,
+	"detector_calor": 8,
+	"kit_reparacion": 2,
+	"botiquin_animal": 4,
 }
 
 var coins := 0
